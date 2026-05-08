@@ -1,0 +1,5 @@
+{
+  "name": "HCMUT Smart Parking Monitor",
+  "description": "A comprehensive monitoring system for HCMUT's smart parking infrastructure, featuring real-time tracking, policy management, and financial oversight.",
+  "requestFramePermissions": []
+}
