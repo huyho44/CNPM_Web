@@ -4,6 +4,11 @@ import {
   ExitResult,
   TicketResult,
   TicketExitResult,
+  CardRow,
+  GateRow,
+  OperatorRow,
+  TicketLogRow,
+  RfidLogRow,
 } from './parking.types';
 
 // ── Helper: read a row of OUT parameters after a CALL statement ──────────────
@@ -119,4 +124,116 @@ export async function tempTicketExit(
     message:          out.message,
     duration_minutes: out.duration_minutes ?? null,
   };
+}
+
+// ============================================================
+// GET /api/parking/cards
+// ============================================================
+export async function getCards(): Promise<CardRow[]> {
+  const [rows] = await pool.query(`
+    SELECT
+      rc.card_uid,
+      u.full_name,
+      u.role,
+      u.status,
+      u.sub_role
+    FROM rfid_cards rc
+    JOIN users u ON u.id = rc.user_id
+    ORDER BY u.full_name ASC
+  `);
+  return rows as CardRow[];
+}
+
+// ============================================================
+// GET /api/parking/gates
+// ============================================================
+export async function getGates(): Promise<GateRow[]> {
+  const [rows] = await pool.query(`
+    SELECT
+      g.id        AS gate_id,
+      g.gate_code,
+      g.direction,
+      g.status,
+      pz.name     AS zone_name
+    FROM gates g
+    JOIN parking_zones pz ON pz.id = g.zone_id
+    ORDER BY g.gate_code ASC
+  `);
+  return rows as GateRow[];
+}
+
+// ============================================================
+// GET /api/parking/operators
+// ============================================================
+export async function getOperators(): Promise<OperatorRow[]> {
+  const [rows] = await pool.query(`
+    SELECT
+      id            AS user_id,
+      full_name,
+      university_id,
+      sub_role
+    FROM users
+    WHERE role   = 'STAFF'
+      AND status = 'ACTIVE'
+    ORDER BY full_name ASC
+  `);
+  return rows as OperatorRow[];
+}
+
+// ============================================================
+// GET /api/parking/ticket-logs
+// ============================================================
+export async function getTicketLogs(limit = 100): Promise<TicketLogRow[]> {
+  const [rows] = await pool.query(`
+    SELECT
+      al.id                         AS log_id,
+      DATE_FORMAT(al.event_time,
+        '%Y-%m-%dT%H:%i:%s')         AS event_time,
+      al.direction,
+      g.gate_code,
+      pz.name                       AS zone_name,
+      al.ticket_code,
+      al.result,
+      al.deny_reason,
+      tt.issued_by,
+      al.session_id
+    FROM access_logs al
+    JOIN  gates          g   ON g.id  = al.gate_id
+    JOIN  parking_zones  pz  ON pz.id = g.zone_id
+    LEFT JOIN temporary_tickets tt ON tt.ticket_code = al.ticket_code
+    WHERE al.access_method = 'TEMPORARY_TICKET'
+    ORDER BY al.event_time DESC
+    LIMIT ?
+  `, [limit]);
+  return rows as TicketLogRow[];
+}
+
+// ============================================================
+// GET /api/parking/rfid-logs
+// ============================================================
+export async function getRfidLogs(limit = 100): Promise<RfidLogRow[]> {
+  const [rows] = await pool.query(`
+    SELECT
+      al.id                         AS log_id,
+      DATE_FORMAT(al.event_time,
+        '%Y-%m-%dT%H:%i:%s')         AS event_time,
+      al.direction,
+      g.gate_code,
+      pz.name                       AS zone_name,
+      al.card_uid,
+      u.full_name,
+      u.role,
+      al.result,
+      al.deny_reason,
+      al.session_id
+    FROM access_logs al
+    JOIN  gates          g   ON g.id   = al.gate_id
+    JOIN  parking_zones  pz  ON pz.id  = g.zone_id
+    LEFT JOIN rfid_cards rc  ON rc.card_uid = al.card_uid
+    LEFT JOIN users      u   ON u.id   = rc.user_id
+    WHERE al.access_method = 'RFID'
+    ORDER BY al.event_time DESC
+    LIMIT ?
+  `, [limit]);
+  return rows as RfidLogRow[];
 }

@@ -52,3 +52,54 @@ export interface TicketExitResult {
   message:          string;
   duration_minutes: number | null;
 }
+
+// ── Query result row types ────────────────────────────────────
+export interface CardRow {
+  card_uid:  string;
+  full_name: string;
+  role:      'LEARNER' | 'FACULTY' | 'STAFF';
+  status:    'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+  sub_role:  string | null;
+}
+
+export interface GateRow {
+  gate_id:   string;
+  gate_code: string;
+  direction: 'ENTRY' | 'EXIT' | 'BOTH';
+  status:    'ONLINE' | 'OFFLINE' | 'FAULT';
+  zone_name: string;
+}
+
+export interface OperatorRow {
+  user_id:       string;
+  full_name:     string;
+  university_id: string;
+  sub_role:      string | null;
+}
+
+export interface TicketLogRow {
+  log_id:       string;
+  event_time:   string;
+  direction:    'ENTRY' | 'EXIT';
+  gate_code:    string;
+  zone_name:    string;
+  ticket_code:  string | null;
+  result:       'GRANTED' | 'DENIED' | 'ERROR';
+  deny_reason:  string | null;
+  issued_by:    'KIOSK' | 'OPERATOR' | null;
+  session_id:   string | null;
+}
+
+export interface RfidLogRow {
+  log_id:      string;
+  event_time:  string;           // ISO datetime string
+  direction:   'ENTRY' | 'EXIT';
+  gate_code:   string;
+  zone_name:   string;
+  card_uid:    string | null;
+  full_name:   string | null;    // from users via rfid_cards
+  role:        'LEARNER' | 'FACULTY' | 'STAFF' | null;
+  result:      'GRANTED' | 'DENIED' | 'ERROR';
+  deny_reason: string | null;
+  session_id:  string | null;
+}

@@ -83,3 +83,83 @@ export async function handleTempTicketExit(
     next(err);
   }
 }
+
+// ============================================================
+// GET /api/parking/cards
+// ============================================================
+export async function handleGetCards(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const data = await parkingService.getCards();
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ============================================================
+// GET /api/parking/gates
+// ============================================================
+export async function handleGetGates(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const data = await parkingService.getGates();
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ============================================================
+// GET /api/parking/operators
+// ============================================================
+export async function handleGetOperators(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const data = await parkingService.getOperators();
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ============================================================
+// GET /api/parking/ticket-logs
+// ============================================================
+export async function handleGetTicketLogs(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const data = await parkingService.getTicketLogs();
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ============================================================
+// GET /api/parking/rfid-logs
+// ============================================================
+export async function handleGetRfidLogs(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const data = await parkingService.getRfidLogs();
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+}

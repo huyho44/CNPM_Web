@@ -11,9 +11,21 @@ import {
   handleRfidExit,
   handleIssueTempTicket,
   handleTempTicketExit,
+  handleGetCards,
+  handleGetGates,
+  handleGetOperators,
+  handleGetTicketLogs,
+  handleGetRfidLogs,
 } from './parking.controller';
 
 const router = Router();
+
+// Get data routes 
+router.get('/cards',        handleGetCards);
+router.get('/gates',        handleGetGates);
+router.get('/operators',    handleGetOperators);
+router.get('/ticket-logs',  handleGetTicketLogs);
+router.get('/rfid-logs',    handleGetRfidLogs);
 
 // UC-01
 router.post('/rfid-entry',       validate(RfidEntrySchema),       handleRfidEntry);
