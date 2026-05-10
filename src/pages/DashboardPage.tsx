@@ -1,8 +1,7 @@
-import { useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { ParkingCircle, Car, Wrench, Activity, Wifi, WifiOff, AlertTriangle, Zap } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { ParkingCircle, Car, Wrench, Activity, Wifi, WifiOff, AlertTriangle, Zap, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { useAppStore } from '../store/appStore';
 import { cn } from '../lib/utils';
 
 const AVAIL_COLOR: Record<string, string> = {
@@ -28,40 +27,78 @@ function KpiCard({ label, value, sub, icon: Icon, color }: { label: string; valu
 }
 
 export default function DashboardPage() {
-  const { state, dispatch } = useAppStore();
-  const { slots, zones, sessions, devices, alerts, logs, trafficData } = state;
+  const [stats, setStats] = useState({ total: 0, available: 0, occupied: 0, maintenance: 0, activeSessions: 0, faults: 0 });
+  const [zones, setZones] = useState<any[]>([]);
+  const [trafficData, setTrafficData] = useState<any[]>([]);
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const stats = useMemo(() => ({
-    total: slots.length,
-    available: slots.filter(s => s.status === 'Available').length,
-    occupied: slots.filter(s => s.status === 'Occupied').length,
-    maintenance: slots.filter(s => s.status === 'Maintenance').length,
-    activeSessions: sessions.filter(s => s.status === 'Active').length,
-    faults: devices.filter(d => d.status === 'Fault' || d.status === 'Offline').length,
-  }), [slots, sessions, devices]);
+  useEffect(() => {
+    let isMounted = true;
+    
+    async function fetchData() {
+      try {
+        const [statsRes, zonesRes, trafficRes, rfidRes, ticketRes] = await Promise.all([
+          fetch('http://localhost:3001/api/parking/dashboard/stats').then(res => res.json()),
+          fetch('http://localhost:3001/api/parking/dashboard/zones').then(res => res.json()),
+          fetch('http://localhost:3001/api/parking/dashboard/traffic').then(res => res.json()),
+          fetch('http://localhost:3001/api/parking/rfid-logs').then(res => res.json()),
+          fetch('http://localhost:3001/api/parking/ticket-logs').then(res => res.json())
+        ]);
+        
+        if (!isMounted) return;
 
-  const scenarioButtons = [
-    { label: 'Student in', action: () => dispatch({ type: 'TAP_ENTRY', userId: 'U001', gateId: 'Cổng 1' }) },
-    { label: 'Student out', action: () => dispatch({ type: 'TAP_EXIT', userId: 'U001' }) },
-    { label: 'A full', action: () => { state.slots.filter(s => s.zone === state.zones[0]?.name && s.status === 'Available').forEach(s => dispatch({ type: 'TOGGLE_SLOT', slotId: s.id })); } },
-    { label: 'Sync DATACORE', action: () => dispatch({ type: 'RUN_SYNC' }) },
-    { label: 'Run billing cycle', action: () => dispatch({ type: 'RUN_BILLING' }) },
-    { label: 'Reset data', action: () => dispatch({ type: 'RESET' }) },
-  ];
+        setStats(statsRes);
+        setZones(zonesRes);
+        setTrafficData(trafficRes);
+        
+        const allLogs = [
+          ...rfidRes.map((l: any) => ({
+            id: l.log_id,
+            timestamp: new Date(l.event_time).toLocaleString('vi-VN', { hour12: false }),
+            rawDate: new Date(l.event_time),
+            category: l.result === 'GRANTED' ? 'ENTRY_GRANTED' : (l.result === 'DENIED' ? 'ENTRY_DENIED' : 'ERROR'),
+            actor: l.full_name || 'Unknown',
+            message: `${l.direction === 'ENTRY' ? 'In' : 'Out'} gate ${l.gate_code} (${l.zone_name}). ${l.deny_reason ? 'Reason: ' + l.deny_reason : ''}`
+          })),
+          ...ticketRes.map((l: any) => ({
+            id: l.log_id,
+            timestamp: new Date(l.event_time).toLocaleString('vi-VN', { hour12: false }),
+            rawDate: new Date(l.event_time),
+            category: l.result === 'GRANTED' ? 'TEMP_TICKET_CREATED' : 'ENTRY_DENIED',
+            actor: l.issued_by || 'Unknown',
+            message: `Temporary Ticket ${l.ticket_code || ''} ${l.direction === 'ENTRY' ? 'In' : 'Out'} gate ${l.gate_code} (${l.zone_name}). ${l.deny_reason ? 'Lý do: ' + l.deny_reason : ''}`
+          }))
+        ];
+        
+        allLogs.sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime());
+        setLogs(allLogs.slice(0, 8));
+        setLoading(false);
+      } catch (err) {
+        console.error('Failed to fetch dashboard data:', err);
+        if (isMounted) setLoading(false);
+      }
+    }
+    
+    fetchData();
+    const interval = setInterval(fetchData, 5000); // refresh every 5s
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex h-[calc(100vh-100px)] items-center justify-center">
+        <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
+        <span className="ml-2 text-gray-600 font-medium">Loading...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Demo Scenarios */}
-      <div className="bg-gradient-to-r from-purple-800 to-purple-600 rounded-xl p-4">
-        <p className="text-white/80 text-xs font-bold uppercase tracking-widest mb-3">Demo Scenarios</p>
-        <div className="flex flex-wrap gap-2">
-          {scenarioButtons.map(b => (
-            <button key={b.label} onClick={b.action} className="bg-white/15 hover:bg-white/25 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors border border-white/20">
-              {b.label}
-            </button>
-          ))}
-        </div>
-      </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
@@ -85,6 +122,7 @@ export default function DashboardPage() {
             <div className="flex gap-2 mt-2 text-xs">
               <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-bold">{z.availableSlots} Empty</span>
               <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded font-bold">{z.occupiedSlots} Occupied</span>
+              <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-bold">{z.maintenanceSlots} Maintenance</span>
             </div>
           </div>
         ))}
@@ -104,20 +142,6 @@ export default function DashboardPage() {
                 <Bar dataKey="count" fill="#7c3aed" radius={[4, 4, 0, 0]} name="Count" />
               </BarChart>
             </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Alerts */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h3 className="text-base font-semibold text-gray-800 mb-4">Recent Alerts</h3>
-          <div className="space-y-3">
-            {alerts.length === 0 && <p className="text-sm text-gray-400 text-center py-4">No alerts</p>}
-            {alerts.map(a => (
-              <div key={a.id} className={cn('p-3 rounded-lg border-l-4 text-sm', a.severity === 'High' ? 'border-red-500 bg-red-50' : a.severity === 'Medium' ? 'border-amber-400 bg-amber-50' : 'border-blue-400 bg-blue-50')}>
-                <p className="font-medium text-gray-800">{a.message}</p>
-                <p className="text-xs text-gray-500 mt-1">{a.timestamp}</p>
-              </div>
-            ))}
           </div>
         </div>
       </div>

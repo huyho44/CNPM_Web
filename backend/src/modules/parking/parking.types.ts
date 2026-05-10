@@ -103,3 +103,30 @@ export interface RfidLogRow {
   deny_reason: string | null;
   session_id:  string | null;
 }
+
+// ── Dashboard Data Types ──────────────────────────────────────────
+export interface DashboardStats {
+  total: number;
+  available: number;
+  occupied: number;
+  maintenance: number;
+  activeSessions: number;
+  faults: number;
+}
+
+export interface ZoneSignage {
+  id: string;
+  name: string;
+  totalSlots: number;
+  availableSlots: number;
+  occupiedSlots: number;
+  maintenanceSlots: number;
+  availability: 'Available' | 'Nearly Full' | 'Full' | 'Uncertain';
+  signageText: string;
+  gatewayConnected: boolean;
+}
+
+export interface TrafficPoint {
+  hour: string;
+  count: number;
+}

@@ -163,3 +163,51 @@ export async function handleGetRfidLogs(
     next(err);
   }
 }
+
+// ============================================================
+// GET /api/parking/dashboard/stats
+// ============================================================
+export async function handleGetDashboardStats(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const data = await parkingService.getDashboardStats();
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ============================================================
+// GET /api/parking/dashboard/zones
+// ============================================================
+export async function handleGetDashboardZones(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const data = await parkingService.getDashboardZones();
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ============================================================
+// GET /api/parking/dashboard/traffic
+// ============================================================
+export async function handleGetDashboardTraffic(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const data = await parkingService.getDashboardTraffic();
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+}

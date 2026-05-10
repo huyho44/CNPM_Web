@@ -9,6 +9,9 @@ import {
   OperatorRow,
   TicketLogRow,
   RfidLogRow,
+  DashboardStats,
+  ZoneSignage,
+  TrafficPoint,
 } from './parking.types';
 
 // ── Helper: read a row of OUT parameters after a CALL statement ──────────────
@@ -236,4 +239,128 @@ export async function getRfidLogs(limit = 100): Promise<RfidLogRow[]> {
     LIMIT ?
   `, [limit]);
   return rows as RfidLogRow[];
+}
+
+// ============================================================
+// GET /api/parking/dashboard/stats
+// ============================================================
+export async function getDashboardStats(): Promise<DashboardStats> {
+  const [slotRows] = await pool.query(`
+    SELECT
+      COUNT(*) as total,
+      SUM(CASE WHEN status = 'AVAILABLE' THEN 1 ELSE 0 END) as available,
+      SUM(CASE WHEN status = 'OCCUPIED' THEN 1 ELSE 0 END) as occupied,
+      SUM(CASE WHEN status = 'MAINTENANCE' THEN 1 ELSE 0 END) as maintenance
+    FROM parking_slots
+  `);
+  const [sessRows] = await pool.query('SELECT COUNT(*) as count FROM parking_sessions WHERE status = "ACTIVE"');
+  const [faultRows] = await pool.query('SELECT COUNT(*) as count FROM gates WHERE status IN ("FAULT", "OFFLINE")');
+
+  const slots = (slotRows as any)[0];
+  return {
+    total: Number(slots.total || 0),
+    available: Number(slots.available || 0),
+    occupied: Number(slots.occupied || 0),
+    maintenance: Number(slots.maintenance || 0),
+    activeSessions: Number((sessRows as any)[0].count || 0),
+    faults: Number((faultRows as any)[0].count || 0),
+  };
+}
+
+// ============================================================
+// GET /api/parking/dashboard/zones
+// ============================================================
+export async function getDashboardZones(): Promise<ZoneSignage[]> {
+  const [rows] = await pool.query(`
+  SELECT
+    pz.id,
+    pz.name,
+    COALESCE(s.totalSlots, 0) AS totalSlots,
+    COALESCE(s.availableSlots, 0) AS availableSlots,
+    COALESCE(s.occupiedSlots, 0) AS occupiedSlots,
+    COALESCE(s.maintenanceSlots, 0) AS maintenanceSlots,
+    COALESCE(g.gatewayConnected, 0) AS gatewayConnected
+  FROM parking_zones pz
+  LEFT JOIN (
+    SELECT
+      zone_id,
+      COUNT(*) AS totalSlots,
+      SUM(CASE WHEN status = 'AVAILABLE' THEN 1 ELSE 0 END) AS availableSlots,
+      SUM(CASE WHEN status = 'OCCUPIED' THEN 1 ELSE 0 END) AS occupiedSlots,
+      SUM(CASE WHEN status = 'MAINTENANCE' THEN 1 ELSE 0 END) AS maintenanceSlots
+    FROM parking_slots
+    GROUP BY zone_id
+  ) s ON pz.id = s.zone_id
+  LEFT JOIN (
+    SELECT
+      zone_id,
+      CASE
+        WHEN COUNT(*) = 0 THEN 0
+        WHEN SUM(CASE WHEN status IN ('FAULT', 'OFFLINE') THEN 1 ELSE 0 END) > 0 THEN 0
+        ELSE 1
+      END AS gatewayConnected
+    FROM gates
+    GROUP BY zone_id
+  ) g ON pz.id = g.zone_id;
+  `);
+
+  return (rows as any[]).map(row => {
+    const totalSlots = Number(row.totalSlots || 0);
+    const availableSlots = Number(row.availableSlots || 0);
+    const gatewayConnected = Boolean(Number(row.gatewayConnected ?? 0));
+
+    let availability: ZoneSignage['availability'] = 'Available';
+    if (!gatewayConnected) availability = 'Uncertain';
+    else if (availableSlots === 0) availability = 'Full';
+    else if (totalSlots > 0 && availableSlots / totalSlots < 0.15) availability = 'Nearly Full';
+
+    const shortName = row.name.split(' ')[1] || row.name;
+    const signageText = !gatewayConnected
+      ? `${shortName}: UNCERTAIN`
+      : availableSlots === 0
+        ? `${shortName}: FULL`
+        : `${shortName}: ${availableSlots} Empty`;
+
+    return {
+      id: row.id,
+      name: row.name,
+      totalSlots,
+      availableSlots,
+      occupiedSlots: Number(row.occupiedSlots || 0),
+      maintenanceSlots: Number(row.maintenanceSlots || 0),
+      availability,
+      signageText,
+      gatewayConnected
+    };
+  });
+}
+
+// ============================================================
+// GET /api/parking/dashboard/traffic
+// ============================================================
+
+export async function getDashboardTraffic(): Promise<TrafficPoint[]> {
+  const [rows] = await pool.query(`
+  SELECT
+    DATE_FORMAT(entry_time, '%H:00') AS hour,
+    COUNT(*) AS count
+  FROM parking_sessions
+  WHERE DATE(entry_time) = CURDATE()
+  GROUP BY DATE_FORMAT(entry_time, '%H:00')
+  ORDER BY STR_TO_DATE(hour, '%H:00');
+  `);
+
+  const data = rows as any[];
+  const trafficMap = new Map(data.map(d => [d.hour, Number(d.count)]));
+  
+  const result: TrafficPoint[] = [];
+  for (let i = 6; i <= 22; i++) {
+    const hourStr = `${String(i).padStart(2, '0')}:00`;
+    result.push({
+      hour: hourStr,
+      count: trafficMap.get(hourStr) || 0
+    });
+  }
+
+  return result;
 }
