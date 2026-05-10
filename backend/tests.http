@@ -1,0 +1,232 @@
+
+### Gate IDs from seed data:
+###   GATE-A-IN  (ENTRY): 9b7f0c06-02b7-434f-8b12-56608e3a51d1
+###   GATE-A-OUT (EXIT):  7a478009-674d-4a65-a2c6-ecb90b28da95
+###   GATE-B-IN  (ENTRY): f01430d2-1ff0-4347-84bf-3922dddbe935
+###   GATE-B-OUT (EXIT):  b43dcde4-a7f7-4e35-852c-c96de748b865
+###
+### Card UIDs from seed data:
+###   RFID-A1B2C3  → Pham Ngoc Huy    (LEARNER, ACTIVE, has active session)
+###   RFID-D4E5F6  → Be Nguyen Dang Khoa (LEARNER, ACTIVE, has active session)
+###   RFID-G7H8I9  → Ho Quoc Huy       (LEARNER, ACTIVE, no session)
+###   RFID-J1K2L3  → Nguyen Van An      (FACULTY, ACTIVE, has active session — fee_applicable=false)
+###   RFID-M4N5O6  → Tran Thi Bich      (FACULTY, ACTIVE, no session)
+###   RFID-P7Q8R9  → Le Van Cuong       (STAFF, ACTIVE, session COMPLETED)
+
+@base = http://localhost:3001/api/parking
+
+# ─────────────────────────────────────────────
+# HEALTH CHECK
+# ─────────────────────────────────────────────
+### Health
+GET http://localhost:3001/health
+
+
+# ─────────────────────────────────────────────
+# UC-01 — RFID ENTRY
+# ─────────────────────────────────────────────
+
+### ✅ UC-01-T01: Valid entry — LEARNER, slot available
+POST {{base}}/rfid-entry
+Content-Type: application/json
+
+{
+  "card_uid": "RFID-G7H8I9",
+  "gate_id":  "9b7f0c06-02b7-434f-8b12-56608e3a51d1"
+}
+
+###
+
+### ✅ UC-01-T02: Valid entry — FACULTY (fee_applicable should be false)
+POST {{base}}/rfid-entry
+Content-Type: application/json
+
+{
+  "card_uid": "RFID-M4N5O6",
+  "gate_id":  "9b7f0c06-02b7-434f-8b12-56608e3a51d1"
+}
+
+###
+
+### ❌ UC-01-T03: Unknown card_uid — expect DENIED "Card not found"
+POST {{base}}/rfid-entry
+Content-Type: application/json
+
+{
+  "card_uid": "RFID-UNKNOWN-CARD",
+  "gate_id":  "9b7f0c06-02b7-434f-8b12-56608e3a51d1"
+}
+
+###
+
+### ❌ UC-01-T04: Using an EXIT gate for entry — expect DENIED
+POST {{base}}/rfid-entry
+Content-Type: application/json
+
+{
+  "card_uid": "RFID-G7H8I9",
+  "gate_id":  "7a478009-674d-4a65-a2c6-ecb90b28da95"
+}
+
+###
+
+### ❌ UC-01-T05: Validation fail — missing card_uid — expect 400
+POST {{base}}/rfid-entry
+Content-Type: application/json
+
+{
+  "gate_id": "9b7f0c06-02b7-434f-8b12-56608e3a51d1"
+}
+
+###
+
+### ❌ UC-01-T06: Validation fail — gate_id not a UUID — expect 400
+POST {{base}}/rfid-entry
+Content-Type: application/json
+
+{
+  "card_uid": "RFID-A1B2C3",
+  "gate_id":  "GATE-A-IN"
+}
+
+###
+
+
+# ─────────────────────────────────────────────
+# UC-01 — RFID EXIT
+# ─────────────────────────────────────────────
+
+### ✅ UC-01-T07: Valid exit — LEARNER with active session
+### (run UC-01-T01 first to create a session for RFID-G7H8I9)
+POST {{base}}/rfid-exit
+Content-Type: application/json
+
+{
+  "card_uid": "RFID-G7H8I9",
+  "gate_id":  "7a478009-674d-4a65-a2c6-ecb90b28da95"
+}
+
+###
+
+### ❌ UC-01-T08: No active session — expect DENIED
+POST {{base}}/rfid-exit
+Content-Type: application/json
+
+{
+  "card_uid": "RFID-P7Q8R9",
+  "gate_id":  "7a478009-674d-4a65-a2c6-ecb90b28da95"
+}
+
+###
+
+### ❌ UC-01-T09: Using an ENTRY gate for exit — expect DENIED
+POST {{base}}/rfid-exit
+Content-Type: application/json
+
+{
+  "card_uid": "RFID-A1B2C3",
+  "gate_id":  "9b7f0c06-02b7-434f-8b12-56608e3a51d1"
+}
+
+###
+
+
+# ─────────────────────────────────────────────
+# UC-02 — ISSUE TEMPORARY TICKET
+# ─────────────────────────────────────────────
+
+### ✅ UC-02-T01: Kiosk issues ticket at Zone B entry gate
+POST {{base}}/temp-ticket
+Content-Type: application/json
+
+{
+  "gate_id":     "f01430d2-1ff0-4347-84bf-3922dddbe935",
+  "issued_by":   "KIOSK",
+  "operator_id": null
+}
+
+###
+
+### ✅ UC-02-T02: Operator issues ticket manually
+POST {{base}}/temp-ticket
+Content-Type: application/json
+
+{
+  "gate_id":     "9b7f0c06-02b7-434f-8b12-56608e3a51d1",
+  "issued_by":   "OPERATOR",
+  "operator_id": "f4bcf71f-4702-472d-a56c-3a6eca3f4ab7"
+}
+
+###
+
+### ❌ UC-02-T03: Validation fail — issued_by invalid value — expect 400
+POST {{base}}/temp-ticket
+Content-Type: application/json
+
+{
+  "gate_id":   "9b7f0c06-02b7-434f-8b12-56608e3a51d1",
+  "issued_by": "MANAGER"
+}
+
+###
+
+### ❌ UC-02-T04: Using EXIT gate for ticket — expect DENIED
+POST {{base}}/temp-ticket
+Content-Type: application/json
+
+{
+  "gate_id":     "7a478009-674d-4a65-a2c6-ecb90b28da95",
+  "issued_by":   "KIOSK",
+  "operator_id": null
+}
+
+###
+
+
+# ─────────────────────────────────────────────
+# UC-02 — TEMP TICKET EXIT
+# ─────────────────────────────────────────────
+
+### ✅ UC-02-T05: Active ticket exits
+### (replace ticket_code with one returned from UC-02-T01)
+POST {{base}}/temp-ticket-exit
+Content-Type: application/json
+
+{
+  "ticket_code": "TKT-20260509-001",
+  "gate_id":     "b43dcde4-a7f7-4e35-852c-c96de748b865"
+}
+
+###
+
+### ❌ UC-02-T06: Already used ticket — expect DENIED
+POST {{base}}/temp-ticket-exit
+Content-Type: application/json
+
+{
+  "ticket_code": "TKT-20260509-002",
+  "gate_id":     "7a478009-674d-4a65-a2c6-ecb90b28da95"
+}
+
+###
+
+### ❌ UC-02-T07: Unknown ticket — expect DENIED
+POST {{base}}/temp-ticket-exit
+Content-Type: application/json
+
+{
+  "ticket_code": "TKT-DOES-NOT-EXIST",
+  "gate_id":     "7a478009-674d-4a65-a2c6-ecb90b28da95"
+}
+
+###
+
+### ❌ UC-02-T08: Validation fail — missing ticket_code — expect 400
+POST {{base}}/temp-ticket-exit
+Content-Type: application/json
+
+{
+  "gate_id": "7a478009-674d-4a65-a2c6-ecb90b28da95"
+}
+
+###
